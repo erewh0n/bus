@@ -3,16 +3,16 @@ extern crate actix_web;
 extern crate serde;
 extern crate serde_json;
 #[macro_use] extern crate serde_derive;
-use actix_web::{server, App, Json, HttpRequest, HttpResponse, Error, http, Result};
+use actix_web::{server, App, Json, http};
 
 #[derive(Deserialize)]
 struct Topic {
     name: String,
+    body: String,
 }
 
-
 fn index(topic: Json<Topic>) -> String {
-    format!("topic name is {}!", topic.name)
+    format!("topic name is {}!, topic body is {}", topic.name, topic.body)
 }
 
 fn main() {
