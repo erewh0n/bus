@@ -1,9 +1,9 @@
 ## Development Setup
 
 1. Using Go 1.11
-2. mkdir -p /tmp/badger/logs && mkdir -p /tmp/badger/offsets
-3. go build . (and `go get` whatever is missing)
-4. ./server
+2. `mkdir -p /tmp/badger/logs && mkdir -p /tmp/badger/offsets`
+3. `go build .` (and `go get` whatever is missing)
+4. `./server`
 
 ## API
 
