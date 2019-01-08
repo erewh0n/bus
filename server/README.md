@@ -14,6 +14,6 @@ Post message "bar" to topic "foo":
 `curl -vX POST 127.0.0.1:9000/topics/foo -H 'Content-Type: application/json' -d '{"Message": "bar"}'`
 
 Retrieve a message from topic "foo":
-`curl -vX GET '127.0.0.1:9000/a?group=a&client_id=1'`
+`curl -vX GET '127.0.0.1:9000/foo?group=a&client_id=1'`
   - `group`: the message group this client belongs to (messages are delivered round robin in a group)
   - `client_id`: a unique ID for the client
