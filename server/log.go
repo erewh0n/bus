@@ -14,7 +14,7 @@ type Log interface {
 }
 
 var (
-	ErrKeyNotFound = errors.New("That key d")
+	ErrKeyNotFound = errors.New("Key not found")
 )
 
 func NewMessage(body string) *Message {

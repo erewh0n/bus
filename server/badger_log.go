@@ -35,9 +35,9 @@ func ListAll() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	for i := range files {
-		if files[i].IsDir() {
-			names = append(names, files[i].Name())
+	for _, file := range files {
+		if file.IsDir() {
+			names = append(names, file.Name())
 		}
 	}
 	return names, nil

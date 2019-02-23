@@ -11,13 +11,11 @@ type OffsetStore interface {
 }
 
 type Receiver struct {
-	id           string
-	offset       string
-	offsetStore  OffsetStore
-	handlers     map[string]chan ReceiveResult
-	log          Log
-	available    map[string]*Receiver
-	hasNewWrites bool
+	id          string
+	offset      string
+	offsetStore OffsetStore
+	handlers    map[string]chan ReceiveResult
+	log         Log
 }
 
 type Channel struct {
@@ -25,15 +23,14 @@ type Channel struct {
 	log         Log
 	receivers   map[string]*Receiver
 	offsetStore OffsetStore
-	available   map[string]*Receiver
 }
 
 func NewChannelFactory(name string) (*Channel, error) {
-	offsetStore, err := NewBadgerOffsetStore(name)
+	offsetStore, err := NewCRDBOffsets(name)
 	if err != nil {
 		return nil, err
 	}
-	log, err := NewBadgerLog(name)
+	log, err := NewCRDBLog(name)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +49,7 @@ func NewChannel(name string, log Log, offsetStore OffsetStore) *Channel {
 func (channel *Channel) Receive(clientId, receiverId string) (chan ReceiveResult, error) {
 	_, ok := channel.receivers[receiverId]
 	if !ok {
-		receiver, err := NewReceiver(receiverId, channel.offsetStore, channel.log, channel.available)
+		receiver, err := NewReceiver(receiverId, channel.offsetStore, channel.log)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +69,7 @@ func (channel *Channel) Send(message *Message) error {
 	return nil
 }
 
-func NewReceiver(id string, offsetStore OffsetStore, log Log, available map[string]*Receiver) (*Receiver, error) {
+func NewReceiver(id string, offsetStore OffsetStore, log Log) (*Receiver, error) {
 	offset, err := offsetStore.Get(id)
 	if err != nil {
 		return nil, err
@@ -119,14 +116,6 @@ func (receiver *Receiver) waitUntilThereIsMoreToRead() bool {
 	// TODO: not scalable or performant
 	time.Sleep(10 * time.Millisecond)
 	return true
-}
-
-func (receiver *Receiver) continueProcessing() bool {
-	if receiver.hasNewWrites {
-		receiver.hasNewWrites = false
-		return true
-	}
-	return false
 }
 
 func (receiver *Receiver) processMessages() {
