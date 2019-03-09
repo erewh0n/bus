@@ -2,11 +2,13 @@ package main
 
 import (
 	"net/http"
-
-	"go.uber.org/zap"
+	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
+
+	messagelog "github.com/izzatbamieh/bus/server/log"
 )
 
 type Runnable interface {
@@ -30,25 +32,25 @@ type TopicsView struct {
 }
 
 type Handler struct {
-	bus  *Bus
-	log  *zap.SugaredLogger
-	json jsoniter.API
+	topics *messagelog.Topics
+	log    *zap.SugaredLogger
+	json   jsoniter.API
 }
 
-func NewHandler(bus *Bus, log *zap.SugaredLogger) *Handler {
+func NewHandler(topics *messagelog.Topics, log *zap.SugaredLogger) *Handler {
 	return &Handler{
-		bus:  bus,
-		log:  log,
-		json: jsoniter.ConfigCompatibleWithStandardLibrary,
+		topics: topics,
+		log:    log,
+		json:   jsoniter.ConfigCompatibleWithStandardLibrary,
 	}
 }
 
-func NewMessageView(message *Message) *MessageView {
-	if message == nil {
+func NewMessageView(entry *messagelog.Entry) *MessageView {
+	if entry == nil {
 		return &MessageView{}
 	}
 	return &MessageView{
-		Message: message.Body,
+		Message: string(entry.Value),
 	}
 }
 
@@ -63,8 +65,8 @@ func (handler *Handler) PostMessage(response http.ResponseWriter, request *http.
 		return
 	}
 
-	result := handler.bus.Send(params.ByName("name"), writeCommand.Message)
-	if result.Err != nil {
+	result := handler.topics.Produce(params.ByName("name"), []byte(writeCommand.Message))
+	if result.Error != nil {
 		handler.log.Error(err)
 		response.WriteHeader(500)
 		return
@@ -92,12 +94,24 @@ func (handler *Handler) GetMessage(response http.ResponseWriter, request *http.R
 		return
 	}
 
-	messenger, err := handler.bus.Receive(name, group, clientID)
-	if err != nil {
+	var outerEntry *messagelog.Entry
+	reply := &sync.WaitGroup{}
+	reply.Add(1)
+	ack := &sync.WaitGroup{}
+	ack.Add(1)
+	mh := func(entry *messagelog.Entry) *messagelog.ConsumerResult {
+		outerEntry = entry
+		reply.Done()
+		ack.Wait()
+		return &messagelog.ConsumerResult{}
+	}
+	result := handler.topics.Consume(name, group, messagelog.NewConsumer(clientID, mh))
+	if result.Error != nil {
 		response.WriteHeader(500)
 		return
 	}
-	result := <-messenger
+	reply.Wait()
+
 	if result.Err != nil {
 		response.WriteHeader(400)
 		handler.json.NewEncoder(response).Encode(HttpProblem{
