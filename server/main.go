@@ -7,6 +7,7 @@ import (
 	"github.com/rs/xid"
 
 	"github.com/izzatbamieh/bus/server/badgerlog"
+	"github.com/izzatbamieh/bus/server/groups"
 	"github.com/izzatbamieh/bus/server/log"
 
 	"go.uber.org/zap"
@@ -20,27 +21,29 @@ func logEntry(logger *zap.SugaredLogger, entry *log.Entry) {
 	logger.Infof("%s:%s", id.String(), string(entry.Value))
 }
 
-func producer(logger *zap.SugaredLogger, topics *log.Topics, producers *uint32) {
-	for i := 0; ; i++ {
-		result := topics.Produce("test", []byte(fmt.Sprintf("message %d", i)))
-		*producers++
+func producer(logger *zap.SugaredLogger, topics *log.Topics, groups groups.Groups, producers *uint32) {
+	for {
+		result := topics.Produce("test", []byte(fmt.Sprintf("message %d", *producers)))
 		if result.Error != nil {
 			logger.Error(result.Error)
 		}
+		// logger.Info("Sent message ", *producers)
+		// time.Sleep(500 * time.Millisecond)
+		*producers++
 	}
 }
 
-func consumer(logger *zap.SugaredLogger, topics *log.Topics, group string, id string, consumers *uint32) {
-	consumer := log.NewGroupConsumer(group, id)
+func consumer(logger *zap.SugaredLogger, topics *log.Topics, groups groups.Groups, groupID string, consumerID string, consumers *uint32) {
+	receiver, err := topics.Consume(
+		"test",
+		groups.NewConsumer(groupID, consumerID))
+	if err != nil {
+		logger.Error(err)
+	}
+
 	for {
-		message, err := topics.ConsumeNext("test", consumer)
-		if err != nil {
-			logger.Error(err)
-		}
-		message.Offset()
-		message.Data()
+		message := receiver.Next()
 		message.Ack()
-		consumers++
 	}
 }
 
@@ -65,12 +68,13 @@ func main() {
 		return log.NewTopic(name, badgerLog, (log.TopicOffsetStore)(offsetStore)), nil
 	})
 
+	groups := groups.NewGroups()
 	producers := uint32(0)
 	consumer1 := uint32(0)
 	consumer2 := uint32(0)
-	go producer(logger, topics, &producers)
-	go consumer(logger, topics, "test-1", "1", &consumer1)
-	go consumer(logger, topics, "test-1", "2", &consumer2)
+	// go producer(logger, topics, groups, &producers)
+	go consumer(logger, topics, groups, "test-1", "1", &consumer1)
+	go consumer(logger, topics, groups, "test-1", "2", &consumer2)
 	time.Sleep(5 * time.Second)
 	logger.Info("Producer count", producers)
 	logger.Info("Consumer 1 count", consumer1)

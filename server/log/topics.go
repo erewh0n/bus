@@ -19,10 +19,10 @@ func NewTopics(topicFactory func(string) (*Topic, error)) *Topics {
 	}
 }
 
-func (topics *Topics) Produce(topicName string, message []byte) *ProduceResult {
+func (topics *Topics) Produce(topicName string, message []byte) *ProducerResult {
 	topic, err := topics.findOrCreate(topicName)
 	if err != nil {
-		return &ProduceResult{
+		return &ProducerResult{
 			Entry: nil,
 			Error: err,
 		}
@@ -30,12 +30,12 @@ func (topics *Topics) Produce(topicName string, message []byte) *ProduceResult {
 	return topic.Produce(message)
 }
 
-func (topics *Topics) Consume(topicName string, consumerGroupName string, consumer *Consumer) error {
+func (topics *Topics) Consume(topicName string, consumer Consumer) error {
 	topic, err := topics.findOrCreate(topicName)
 	if err != nil {
 		return err
 	}
-	return topic.Consume(consumerGroupName, consumer)
+	return topic.Consume(consumer)
 }
 
 // func (topics *Topics) ConsumeNext(topicName string, consumerGroupName string, consumerID string) (*ConsumerResult, error) {
