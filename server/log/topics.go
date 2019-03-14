@@ -19,8 +19,8 @@ func NewTopics(topicFactory func(string) (*Topic, error)) *Topics {
 	}
 }
 
-func (topics *Topics) Produce(topicName string, message []byte) *ProducerResult {
-	topic, err := topics.findOrCreate(topicName)
+func (topics *Topics) Produce(topicID string, message []byte) *ProducerResult {
+	topic, err := topics.findOrCreate(topicID)
 	if err != nil {
 		return &ProducerResult{
 			Entry: nil,
@@ -30,36 +30,28 @@ func (topics *Topics) Produce(topicName string, message []byte) *ProducerResult 
 	return topic.Produce(message)
 }
 
-func (topics *Topics) Consume(topicName string, consumer Consumer) error {
-	topic, err := topics.findOrCreate(topicName)
+func (topics *Topics) Consume(topicID string, consumerID string) (*Cursor, error) {
+	topic, err := topics.findOrCreate(topicID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return topic.Consume(consumer)
+	return topic.Consume(consumerID)
 }
 
-// func (topics *Topics) ConsumeNext(topicName string, consumerGroupName string, consumerID string) (*ConsumerResult, error) {
-// 	topic, err := topics.findOrCreate(topicName)
-// 	if err != nil {
-// 		return err
-// 	}
+func (topics *Topics) GetTopic(topicID string) (*Topic, error) {
+	return topics.findOrCreate(topicID)
+}
 
-// 	err = topic.Consume(consumerGroupName, NewConsumer(consumerID, func(entry *Entry) *ConsumerResult) {
-// 		if
-// 	})
-// 	return nil, nil
-// }
-
-func (topics *Topics) findOrCreate(topicName string) (*Topic, error) {
+func (topics *Topics) findOrCreate(topicID string) (*Topic, error) {
 	topics.mutex.Lock()
 	defer topics.mutex.Unlock()
-	_, ok := topics.existing[topicName]
+	_, ok := topics.existing[topicID]
 	if !ok {
-		topic, err := topics.topicFactory(topicName)
+		topic, err := topics.topicFactory(topicID)
 		if err != nil {
 			return nil, err
 		}
-		topics.existing[topicName] = topic
+		topics.existing[topicID] = topic
 	}
-	return topics.existing[topicName], nil
+	return topics.existing[topicID], nil
 }

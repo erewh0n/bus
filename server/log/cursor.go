@@ -1,11 +1,7 @@
 package log
 
-import (
-	"errors"
-)
-
 type Cursor struct {
-	consumer    Consumer
+	receiver    chan *Message
 	logStore    LogStore
 	offsetStore CursorOffsetStore
 	offset      []byte
@@ -13,9 +9,9 @@ type Cursor struct {
 	signaler    *Signaler
 }
 
-func newCursor(consumer Consumer, logStore LogStore, offsetStore CursorOffsetStore) (*Cursor, error) {
+func newCursor(logStore LogStore, offsetStore CursorOffsetStore) (*Cursor, error) {
 	cursor := &Cursor{
-		consumer:    consumer,
+		receiver:    make(chan *Message),
 		logStore:    logStore,
 		offsetStore: offsetStore,
 		signaler:    NewSignaler(false),
@@ -35,20 +31,21 @@ func newCursor(consumer Consumer, logStore LogStore, offsetStore CursorOffsetSto
 	return cursor, nil
 }
 
-func (cursor *Cursor) Notify(entry *Entry) {
+func (cursor *Cursor) notify(entry *Entry) {
 	cursor.signaler.Notify()
 }
 
 func (cursor *Cursor) process() {
-	for !cursor.stop {
-		offset, err := cursor.logStore.Next(cursor.offset, func(offset []byte, value []byte) error {
-			message := NewMessage(NewEntry(offset, value))
-			if err := cursor.consumer.Handle(message); err != nil {
-				return errors.New("consumer failed to handle message")
-			}
-			message.Wait()
-			return cursor.offsetStore.Set(offset)
+	handler := func(offset []byte, value []byte) error {
+		message := NewMessage(NewEntry(offset, value), func() {
+			cursor.offsetStore.Set(offset)
 		})
+		cursor.receiver <- message
+		return nil
+	}
+
+	for !cursor.stop {
+		offset, err := cursor.logStore.Next(cursor.offset, handler)
 		if err != nil {
 			// TODO: if this is DB problem we need a failure state transition
 			// but if it's consumer then ... warn? drop consumer?
@@ -56,4 +53,8 @@ func (cursor *Cursor) process() {
 		cursor.offset = offset
 		cursor.signaler.Wait()
 	}
+}
+
+func (cursor *Cursor) Next() *Message {
+	return <-cursor.receiver
 }

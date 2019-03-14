@@ -12,11 +12,6 @@ type ProducerResult struct {
 	Entry *Entry
 }
 
-var (
-	ACK_OK      = "OK"
-	ACK_TIMEOUT = "TIMEOUT"
-)
-
 type Consumer interface {
 	ID() string
 	Handle(*Message) error
@@ -24,26 +19,6 @@ type Consumer interface {
 
 type ConsumerResult struct {
 	AckStatus string
-}
-
-type ConsumerHandler struct {
-	id      string
-	handler func(*Message) error
-}
-
-func NewConsumerHandler(id string, handler func(*Message) error) *ConsumerHandler {
-	return &ConsumerHandler{
-		id,
-		handler,
-	}
-}
-
-func (handler *ConsumerHandler) ID() string {
-	return handler.id
-}
-
-func (handler *ConsumerHandler) Handle(message *Message) error {
-	return handler.handler(message)
 }
 
 func NewTopic(name string, store LogStore, offsetStore TopicOffsetStore) *Topic {
@@ -64,32 +39,32 @@ func (topic *Topic) Produce(value []byte) *ProducerResult {
 		}
 	}
 
-	topic.notifyConsumers(entry)
+	topic.notifyCursors(entry)
 	return &ProducerResult{
 		Entry: entry,
 		Error: nil,
 	}
 }
 
-func (topic *Topic) Consume(consumer Consumer) error {
+func (topic *Topic) Consume(consumerID string) (*Cursor, error) {
 	var cursor *Cursor
-	cursor, ok := topic.cursors[consumer.ID()]
+	cursor, ok := topic.cursors[consumerID]
 	if !ok {
-		cursorOffsetStore, err := topic.offsetStore.GetCursorOffsetStore(consumer.ID())
+		cursorOffsetStore, err := topic.offsetStore.GetCursorOffsetStore(consumerID)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		cursor, err = newCursor(consumer, topic.store, cursorOffsetStore)
+		cursor, err = newCursor(topic.store, cursorOffsetStore)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		topic.cursors[consumer.ID()] = cursor
+		topic.cursors[consumerID] = cursor
 	}
-	return nil
+	return cursor, nil
 }
 
-func (topic *Topic) notifyConsumers(entry *Entry) {
+func (topic *Topic) notifyCursors(entry *Entry) {
 	for _, cursor := range topic.cursors {
-		cursor.Notify(entry)
+		cursor.notify(entry)
 	}
 }
