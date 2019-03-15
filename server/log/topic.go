@@ -35,7 +35,7 @@ func (topic *Topic) Produce(value []byte) *ProducerResult {
 	if err != nil {
 		return &ProducerResult{
 			Entry: nil,
-			Error: err, // TODO: wrap?
+			Error: err,
 		}
 	}
 

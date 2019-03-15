@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"github.com/rs/xid"
 
 	"github.com/izzatbamieh/bus/server/badgerlog"
@@ -40,7 +42,11 @@ func consumer(logger *zap.SugaredLogger, bus *Bus, groupID string, consumerID st
 
 	for {
 		message := receiver.Next()
-		message.Ack()
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			message.AckOK()
+		}()
+		message.Wait()
 		*consumers++
 	}
 }
@@ -67,26 +73,26 @@ func main() {
 	})
 
 	bus := NewBus(topics)
-	producers := uint32(0)
-	consumer1 := uint32(0)
-	consumer2 := uint32(0)
-	consumer3 := uint32(0)
-	go producer(logger, topics, &producers)
-	go consumer(logger, bus, "test-1", "1", &consumer1)
-	go consumer(logger, bus, "test-1", "2", &consumer2)
-	go consumer(logger, bus, "test-1", "3", &consumer3)
-	time.Sleep(5 * time.Second)
-	logger.Info("Producer count", producers)
-	logger.Info("Consumer 1 count", consumer1)
-	logger.Info("Consumer 2 count", consumer2)
-	logger.Info("Consumer 3 count", consumer3)
-	// handler := NewHandler(bus, logger)
+	// producers := uint32(0)
+	// consumer1 := uint32(0)
+	// consumer2 := uint32(0)
+	// consumer3 := uint32(0)
+	// go producer(logger, topics, &producers)
+	// go consumer(logger, bus, "test-1", "1", &consumer1)
+	// go consumer(logger, bus, "test-1", "2", &consumer2)
+	// go consumer(logger, bus, "test-1", "3", &consumer3)
+	// time.Sleep(5 * time.Second)
+	// logger.Info("Producer count", producers)
+	// logger.Info("Consumer 1 count", consumer1)
+	// logger.Info("Consumer 2 count", consumer2)
+	// logger.Info("Consumer 3 count", consumer3)
+	handler := NewHandler(bus, logger)
 
-	// router := httprouter.New()
-	// router.POST("/topics/:name", handler.PostMessage)
-	// router.GET("/topics/:name", handler.GetMessage)
+	router := httprouter.New()
+	router.POST("/topics/:name", handler.PostMessage)
+	router.GET("/topics/:name", handler.GetMessage)
 	// router.GET("/topics", handler.GetTopics)
 
-	// logger.Info("HTTP server started at 127.0.0.1:9000")
-	// logger.Fatal(http.ListenAndServe("127.0.0.1:9000", router))
+	logger.Info("HTTP server started at 127.0.0.1:9000")
+	logger.Fatal(http.ListenAndServe("127.0.0.1:9000", router))
 }
