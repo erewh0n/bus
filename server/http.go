@@ -61,13 +61,19 @@ func (handler *Handler) PostMessage(response http.ResponseWriter, request *http.
 		})
 		return
 	}
-
-	result := handler.bus.Produce(params.ByName("name"), []byte(writeCommand.Message))
-	if result.Error != nil {
+	writer, err := handler.bus.GetWriter(params.ByName("name"))
+	if err != nil {
 		handler.log.Error(err)
 		response.WriteHeader(500)
 		return
 	}
+	_, err = writer.Append([]byte(writeCommand.Message))
+	if err != nil {
+		handler.log.Error(err)
+		response.WriteHeader(500)
+		return
+	}
+
 	response.WriteHeader(204)
 }
 
@@ -91,11 +97,12 @@ func (handler *Handler) GetMessage(response http.ResponseWriter, request *http.R
 		return
 	}
 
-	receiver, err := handler.bus.Receive(name, group, clientID)
+	reader, err := handler.bus.GetReader(name, group)
 	if err != nil {
 		response.WriteHeader(500)
 		return
 	}
+	receiver := reader.Join(clientID)
 	message := receiver.Next()
 	message.AckOK()
 

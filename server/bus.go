@@ -1,59 +1,35 @@
 package main
 
 import (
-	"github.com/izzatbamieh/bus/server/log"
+	"github.com/izzatbamieh/bus/server/db"
 )
 
-type Receiver struct {
-	ID      string
-	message chan *log.Message
-}
-
-func newReceiver(id string) *Receiver {
-	return &Receiver{
-		ID:      id,
-		message: make(chan *log.Message),
-	}
-}
-
-func (receiver *Receiver) Next() *log.Message {
-	return <-receiver.message
-}
-
 type Bus struct {
-	Topics *log.Topics
-	groups map[string]*Group
+	db *db.DB
 }
 
-func NewBus(topics *log.Topics) *Bus {
+func NewBus() (*Bus, error) {
+	db, err := db.NewDB("/tmp/bus")
+	if err != nil {
+		return nil, err
+	}
 	return &Bus{
-		Topics: topics,
-		groups: map[string]*Group{},
-	}
+		db,
+	}, nil
 }
 
-func (bus *Bus) Produce(topicID string, message []byte) *log.ProducerResult {
-	return bus.Topics.Produce(topicID, message)
-}
-
-func (bus *Bus) Receive(topicID string, groupID string, cursorID string) (*Receiver, error) {
-	topic, err := bus.Topics.GetTopic(topicID)
+func (bus *Bus) GetReader(logID string, readerID string) (*db.Reader, error) {
+	log, err := bus.db.Log(logID)
 	if err != nil {
 		return nil, err
 	}
-	cursor, err := topic.Consume(cursorID)
+	return log.Reader(readerID)
+}
+
+func (bus *Bus) GetWriter(logID string) (*db.Writer, error) {
+	log, err := bus.db.Log(logID)
 	if err != nil {
 		return nil, err
 	}
-
-	receiver := newReceiver(cursorID)
-	var group *Group
-	group, ok := bus.groups[groupID]
-	if !ok {
-		group = newGroup(cursor, receiver)
-		bus.groups[groupID] = group
-	}
-	group.Join(receiver)
-
-	return receiver, nil
+	return log.Writer(), nil
 }

@@ -1,6 +1,8 @@
-package log
+package db
 
-import "sync"
+import (
+	"sync"
+)
 
 type Signaler struct {
 	on   bool
